@@ -26,6 +26,17 @@
 | 显示 | OLED（I2C） |
 | 工具链 | Keil MDK 5 / Python 3 |
 
+## 实物效果
+
+**B 板 OLED 显示倾斜状态（ALM:TILT）**，ay 轴加速度随倾斜显著变化：
+
+![OLED 倾斜检测](images/oled_tile.jpg)
+
+**A/B 双板整体连线**：两块 STM32F103C8T6 + CAN 收发器 + MPU6050 + OLED，
+CAN 总线跨板通信，B 板 OLED 显示当前姿态：
+
+![双板连线全景](images/setup_overview.jpg)
+
 ## 三、边缘 AI 核心链路
 
 ### 1. 数据采集（`EdgeGuard/collect_data.py`）

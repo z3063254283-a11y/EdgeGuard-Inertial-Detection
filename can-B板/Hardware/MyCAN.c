@@ -1,4 +1,9 @@
 #include "stm32f10x.h"                  // Device header
+#include "FreeRTOS.h"
+#include "task.h"
+#include "semphr.h"
+
+extern SemaphoreHandle_t canSem;
 
 void MyCAN_Init(void)
 {
@@ -32,24 +37,45 @@ void MyCAN_Init(void)
     CAN_InitStructure.CAN_Prescaler = 3;                   // 分频系数：36M / 4 / (1+9+8) = 500kbps
     CAN_Init(CAN1, &CAN_InitStructure);
 	
-	// ===== 过滤器配置：只接收 ID=0x101（车速帧）和 ID=0x200（报警帧） =====
 	CAN_FilterInitTypeDef CAN_FilterInitStructure;
 
 	// 过滤器组0：接收 ID=0x101
 	CAN_FilterInitStructure.CAN_FilterNumber = 0;
 	CAN_FilterInitStructure.CAN_FilterMode = CAN_FilterMode_IdMask;
-	CAN_FilterInitStructure.CAN_FilterScale = CAN_FilterScale_16bit; 
-	CAN_FilterInitStructure.CAN_FilterIdHigh = (0x101 << 5); 
+	CAN_FilterInitStructure.CAN_FilterScale = CAN_FilterScale_16bit;  
+	CAN_FilterInitStructure.CAN_FilterIdHigh = (0x101 << 5);          
+	CAN_FilterInitStructure.CAN_FilterIdLow = 0x0000;
+	CAN_FilterInitStructure.CAN_FilterMaskIdHigh = (0x7FF << 5);       
+	CAN_FilterInitStructure.CAN_FilterMaskIdLow = 0x0000;
+	CAN_FilterInitStructure.CAN_FilterFIFOAssignment = CAN_Filter_FIFO0;
+	CAN_FilterInitStructure.CAN_FilterActivation = ENABLE;
+	CAN_FilterInit(&CAN_FilterInitStructure);
+
+	// 过滤器组0：接收 ID=0x200
+	CAN_FilterInitStructure.CAN_FilterNumber = 1;
+	CAN_FilterInitStructure.CAN_FilterMode = CAN_FilterMode_IdMask;
+	CAN_FilterInitStructure.CAN_FilterScale = CAN_FilterScale_16bit;  
+	CAN_FilterInitStructure.CAN_FilterIdHigh = (0x200 << 5);          
+	CAN_FilterInitStructure.CAN_FilterIdLow = 0x0000;
+	CAN_FilterInitStructure.CAN_FilterMaskIdHigh = (0x7FF << 5);       
+	CAN_FilterInitStructure.CAN_FilterMaskIdLow = 0x0000;
+	CAN_FilterInitStructure.CAN_FilterFIFOAssignment = CAN_Filter_FIFO0;
+	CAN_FilterInitStructure.CAN_FilterActivation = ENABLE;
+	CAN_FilterInit(&CAN_FilterInitStructure);
+	
+	// 过滤器组1：接收 ID=0x400(报警)
+	CAN_FilterInitStructure.CAN_FilterNumber = 2;
+	CAN_FilterInitStructure.CAN_FilterIdHigh = (0x400 << 5);
 	CAN_FilterInitStructure.CAN_FilterIdLow = 0x0000;
 	CAN_FilterInitStructure.CAN_FilterMaskIdHigh = (0x7FF << 5);
 	CAN_FilterInitStructure.CAN_FilterMaskIdLow = 0x0000;
 	CAN_FilterInitStructure.CAN_FilterFIFOAssignment = CAN_Filter_FIFO0;
 	CAN_FilterInitStructure.CAN_FilterActivation = ENABLE;
 	CAN_FilterInit(&CAN_FilterInitStructure);
-
-	// 过滤器组1：接收 ID=0x200
-	CAN_FilterInitStructure.CAN_FilterNumber = 1;
-	CAN_FilterInitStructure.CAN_FilterIdHigh = (0x200 << 5);
+	
+	// 过滤器组1：接收 ID=0x500(心跳帧)
+	CAN_FilterInitStructure.CAN_FilterNumber = 3;
+	CAN_FilterInitStructure.CAN_FilterIdHigh = (0x500 << 5);
 	CAN_FilterInitStructure.CAN_FilterIdLow = 0x0000;
 	CAN_FilterInitStructure.CAN_FilterMaskIdHigh = (0x7FF << 5);
 	CAN_FilterInitStructure.CAN_FilterMaskIdLow = 0x0000;
@@ -79,7 +105,6 @@ uint8_t MyCAN_Transmit(uint32_t id, uint8_t *data, uint8_t len)
 	if (mailbox > 2)
         return 0;
     
-    // 3. 根据邮箱号选择对应的发送完成标志
     if (mailbox == 0)
         flag = CAN_FLAG_RQCP0;
     else if (mailbox == 1)
@@ -124,4 +149,27 @@ uint8_t MyCAN_Receive(uint32_t *id, uint8_t *data, uint8_t *len)
 	}
 	
 	return 1;
+}
+
+void USB_LP_CAN1_RX0_IRQHandler(void)
+{
+	if(CAN_GetITStatus(CAN1,CAN_IT_FMP0) != RESET)
+	{
+		CAN_ITConfig(CAN1,CAN_IT_FMP0,DISABLE);
+		BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+		xSemaphoreGiveFromISR(canSem,&xHigherPriorityTaskWoken);
+		portYIELD_FROM_ISR(xHigherPriorityTaskWoken);  
+	}
+}
+
+void MyCAN_EnableRxInterrupt(void)
+{
+	CAN_ITConfig(CAN1, CAN_IT_FMP0, ENABLE);   // 开 CAN 控制器内部 FMP0 中断源
+	
+	NVIC_InitTypeDef NVIC_InitStructure;
+	NVIC_InitStructure.NVIC_IRQChannel = USB_LP_CAN1_RX0_IRQn;
+	NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
+	NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 14;
+	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;
+	NVIC_Init(&NVIC_InitStructure);
 }

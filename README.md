@@ -1,10 +1,10 @@
 # EdgeGuard-Inertial-AI
 
-基于 STM32F103C8T6 + MPU6050 的 **车姿态边缘 AI 异常检测系统**。
-在自研的 STM32 + CAN + FreeRTOS 分布式车身控制系统基础上，为 B 板加入边缘智能：
+基于 STM32F103C8T6 + MPU6050 的 **车姿态机器学习（决策树）异常检测系统**。
+在自研的 STM32 + CAN + FreeRTOS 分布式车身控制系统基础上，为 B 板加入机器学习：
 读取六轴传感器 → 滑窗特征提取 → 决策树推理 → 启发式规则融合 → OLED 实时告警。
 
-打通 **数据采集 → Python 训练 → 量化导出 → MCU 纯 C 推理** 的完整边缘 AI 落地链路。
+打通 **数据采集 → Python 训练 → 量化导出 → MCU 纯 C 推理** 的完整机器学习落地链路。
 
 ---
 
@@ -22,7 +22,7 @@
 | 实时系统 | FreeRTOS |
 | 传感器 | MPU6050（六轴：加速度 + 角速度） |
 | 通信 | CAN 总线（500kbps）/ UART 串口调试 / I2C |
-| AI | Python + scikit-learn（决策树），量化后纯 C 移植 |
+| 机器学习 | Python + scikit-learn（决策树），量化后纯 C 移植 |
 | 显示 | OLED（I2C） |
 | 工具链 | Keil MDK 5 / Python 3 |
 
@@ -37,7 +37,7 @@ CAN 总线跨板通信，B 板 OLED 显示当前姿态：
 
 ![双板连线全景](images/setup_overview.jpg)
 
-## 三、边缘 AI 核心链路
+## 三、机器学习（决策树）核心链路
 
 ### 1. 数据采集（`EdgeGuard/collect_data.py`）
 - 通过 UART 串口接收 B 板吐出的 MPU6050 原始六轴数据（ax/ay/az/gx/gy/gz）。
@@ -100,7 +100,7 @@ CAN 总线跨板通信，B 板 OLED 显示当前姿态：
 ## 七、目录结构
 
 ```
-EdgeGuard/                  # PC 端 AI 训练链路（Python）
+EdgeGuard/                  # PC 端机器学习训练链路（Python）
 ├── collect_data.py         # 串口采集传感器数据 → CSV
 ├── feature_extract.py      # 滑窗特征提取 → numpy
 ├── train_model.py          # 决策树训练并导出 C 数组
@@ -109,7 +109,7 @@ EdgeGuard/                  # PC 端 AI 训练链路（Python）
 └── model/
     └── tree_data.c         # 生成的 C 模型文件
 
-can-B板/                    # STM32 边缘 AI 工程
+can-B板/                    # STM32 机器学习工程
 ├── User/
 │   └── main.c              # FreeRTOS 任务 + ML 推理调用
 └── Hardware/
